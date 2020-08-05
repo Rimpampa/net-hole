@@ -14,6 +14,7 @@ use winapi::um::iptypes::{
     GAA_FLAG_SKIP_FRIENDLY_NAME, GAA_FLAG_SKIP_MULTICAST, PIP_ADAPTER_ADDRESSES,
 };
 
+#[allow(clippy::cast_ptr_alignment)] // Can't really do it without
 fn retrieve_addresses() -> Option<Vec<(Ipv4Addr, Ipv4Addr)>> {
     // Suggested by microsoft
     const CHUNKS: u32 = 15000;
@@ -180,10 +181,36 @@ impl fmt::Display for Error {
 pub enum Command {
     State,
     Close,
+    Help,
 }
 
-const COMMANDS: &'static [(&'static str, Command)] =
-    &[("state", Command::State), ("close", Command::Close)];
+impl Command {
+    pub fn list() {
+        println!(
+            "- {}\n- {}\n- {}",
+            Command::Help,
+            Command::Close,
+            Command::State
+        )
+    }
+}
+
+impl fmt::Display for Command {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let explain = match self {
+            Self::State => "prints the state of the mapping",
+            Self::Close => "covers the hole",
+            Self::Help => "shows this list",
+        };
+        write!(fmt, "{:?} - {}", self, explain)
+    }
+}
+
+const COMMANDS: &[(&str, Command)] = &[
+    ("state", Command::State),
+    ("close", Command::Close),
+    ("help", Command::Help),
+];
 
 fn parse(command: &str) -> Option<Command> {
     let mut matching: Vec<usize> = COMMANDS
@@ -202,7 +229,7 @@ fn parse(command: &str) -> Option<Command> {
             .filter(|(_, s)| s == &c)
             .map(|(j, _)| j)
             .collect::<Vec<usize>>();
-        if matching.len() == 0 {
+        if matching.is_empty() {
             break;
         }
     }
@@ -215,7 +242,7 @@ fn parse(command: &str) -> Option<Command> {
 
 fn main() -> Result<(), Error> {
     let interface = retrieve_addresses().ok_or("Could't retrieve your address")?;
-    if interface.len() > 0 {
+    if !interface.is_empty() {
         let pcp = Client::<Ipv4Addr>::start(interface[0].0, interface[0].1).unwrap();
 
         let port = get_port()?;
@@ -232,18 +259,20 @@ fn main() -> Result<(), Error> {
                 Alert::Assigned(addr, port, _) => {
                     let addr = match addr {
                         IpAddr::V4(addr) => addr,
-                        _ => Err("Unexpected response!")?,
+                        _ => return Err("Unexpected response!".into()),
                     };
                     println!("Done! Exited on {}:{}", addr, port);
                     break;
                 }
                 Alert::StateChange => {
                     if let State::Error(err) = handle.state() {
-                        Err(err)?
+                        return Err(err.into());
                     }
                 }
             }
         }
+        println!("\nCommands available:");
+        Command::list();
         let stdin = io::stdin();
         let cin = stdin.lock();
         for command in cin.lines() {
@@ -256,12 +285,13 @@ fn main() -> Result<(), Error> {
                         println!("Goodbye!");
                         break;
                     }
+                    Command::Help => Command::list(),
                 },
                 None => println!("`{}` is not recognized as a command...", command),
             }
         }
         Ok(())
     } else {
-        Err("Cannot retrieve your address")?
+        Err("Cannot retrieve your address".into())
     }
 }
