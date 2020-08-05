@@ -5,7 +5,8 @@
 > This application may cause security issues, know what you are doing
 
 This program lets you request your router to open a port to the internet so that
-traffic directed towards your network will arrive on your computer
+traffic directed towards your network will arrive on your computer, metaphorically
+*punching a hole in your network*
 
 **Note**: It's only available for windows (for now)
 
