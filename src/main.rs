@@ -213,31 +213,10 @@ const COMMANDS: &[(&str, Command)] = &[
 ];
 
 fn parse(command: &str) -> Option<Command> {
-    let mut matching: Vec<usize> = COMMANDS
-        .iter()
-        .map(|(s, _)| s)
-        .enumerate()
-        .filter(|(_, s)| s.len() == command.len())
-        .map(|(i, _)| i)
-        .collect();
-    for (i, c) in command.char_indices() {
-        matching = matching
-            .into_iter()
-            .map(|j| (j, COMMANDS[j]))
-            .map(|(j, (s, _))| (j, s))
-            .filter_map(|(j, s)| s.chars().nth(i).map(|c| (j, c)))
-            .filter(|(_, s)| s == &c)
-            .map(|(j, _)| j)
-            .collect::<Vec<usize>>();
-        if matching.is_empty() {
-            break;
-        }
-    }
-    if matching.len() != 1 {
-        None
-    } else {
-        Some(COMMANDS[matching[0]].1)
-    }
+    COMMANDS.iter().find_map(|(s, c)| match *s == command {
+        true => Some(*c),
+        false => None,
+    })
 }
 
 fn main() -> Result<(), Error> {
