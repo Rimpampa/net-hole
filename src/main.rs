@@ -177,7 +177,7 @@ impl fmt::Display for Error {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum Command {
     State,
     Close,
@@ -192,6 +192,17 @@ impl Command {
             Command::Close,
             Command::State
         )
+    }
+}
+
+impl fmt::Debug for Command {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = match self {
+            Command::State => "state",
+            Command::Close => "close",
+            Command::Help => "help",
+        };
+        write!(fmt, "{}", s)
     }
 }
 
