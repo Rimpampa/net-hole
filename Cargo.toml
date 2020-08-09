@@ -9,3 +9,5 @@ edition = "2018"
 [dependencies]
 pcp = { git = "https://github.com/Rimpampa/pcp-rs" }
 winapi = { version = "0.3.9", features = ["iphlpapi", "winerror", "ifdef"] }
+nix = "0.18.0"
+hex = "0.4.2"
