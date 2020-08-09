@@ -139,37 +139,24 @@ fn get_port() -> io::Result<u16> {
     }
 }
 
-#[derive(Debug)]
-pub enum Error {
-    IoError(io::Error),
-    PCPError(ResultCode),
-    RecvError(RecvError),
-    Other(&'static str),
+macro_rules! wrap {
+    (in $n:ident all of:{$($t:ty as $e:ident),+$(,)?}) => {
+		#[derive(Debug)]
+		pub enum $n { $($e($t)),+ }
+		$(impl From<$t> for $n {
+			fn from(val: $t) -> Self {
+				Self::$e(val)
+			}
+		})+
+	};
 }
 
-impl From<io::Error> for Error {
-    fn from(err: io::Error) -> Self {
-        Self::IoError(err)
-    }
-}
-
-impl From<RecvError> for Error {
-    fn from(err: RecvError) -> Self {
-        Self::RecvError(err)
-    }
-}
-
-impl From<ResultCode> for Error {
-    fn from(err: ResultCode) -> Self {
-        Self::PCPError(err)
-    }
-}
-
-impl From<&'static str> for Error {
-    fn from(err: &'static str) -> Self {
-        Self::Other(err)
-    }
-}
+wrap![ in Error all of: {
+    io::Error as IoError,
+    ResultCode as PCPError,
+    RecvError as RecvError,
+    &'static str as Other,
+}];
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
