@@ -1,4 +1,8 @@
-use winapi::shared::winerror::{ERROR_BUFFER_OVERFLOW, NO_ERROR};
+use crate::error;
+use winapi::shared::winerror::{
+    ERROR_ADDRESS_NOT_ASSOCIATED, ERROR_BUFFER_OVERFLOW, ERROR_INVALID_PARAMETER,
+    ERROR_NOT_ENOUGH_MEMORY, ERROR_NO_DATA, NO_ERROR,
+};
 use winapi::shared::ws2def::{AF_INET, PSOCKADDR_IN, SOCKADDR_IN};
 use winapi::shared::{ifdef::IfOperStatusUp, ntdef::NULL};
 use winapi::um::iphlpapi::GetAdaptersAddresses;
@@ -7,8 +11,19 @@ use winapi::um::iptypes::{
     GAA_FLAG_SKIP_FRIENDLY_NAME, GAA_FLAG_SKIP_MULTICAST, PIP_ADAPTER_ADDRESSES,
 };
 
+#[derive(Debug)]
+pub enum ResultCode {
+    Success = NO_ERROR,
+    ErrorAddressNotAssociated = ERROR_ADDRESS_NOT_ASSOCIATED,
+    ErrorBufferOverflow = ERROR_BUFFER_OVERFLOW,
+    ErrorInvalidParameter = ERROR_INVALID_PARAMETER,
+    ErrorNotEnoughMemory = ERROR_NOT_ENOUGH_MEMORY,
+    ErrorNoData = ERROR_NO_DATA,
+    Other(u32),
+}
+
 #[allow(clippy::cast_ptr_alignment)] // Can't really do it without
-pub fn retrieve() -> Option<Vec<(Ipv4Addr, Ipv4Addr)>> {
+pub fn retrieve() -> error::Result<Vec<(Ipv4Addr, Ipv4Addr)>> {
     // Suggested by microsoft
     const CHUNKS: u32 = 15000;
 
@@ -34,7 +49,7 @@ pub fn retrieve() -> Option<Vec<(Ipv4Addr, Ipv4Addr)>> {
             )
         };
         // The buffer is to small
-        result == ERROR_BUFFER_OVERFLOW
+        result == ResultCode::ErrorBufferOverflow as _
     } {
         // Increase the buffer size
         size += CHUNKS;
@@ -44,7 +59,7 @@ pub fn retrieve() -> Option<Vec<(Ipv4Addr, Ipv4Addr)>> {
     let mut interfaces = Vec::new();
 
     // if there is no error, `buffer` contains the linked list
-    if result == NO_ERROR {
+    if result == ResultCode::Success as _ {
         // Get the list as a pointer
         let mut list = buffer.as_ptr() as PIP_ADAPTER_ADDRESSES;
         // For every element in the list
@@ -111,8 +126,18 @@ pub fn retrieve() -> Option<Vec<(Ipv4Addr, Ipv4Addr)>> {
                 }
             }
         }
-        Some(interfaces)
+        Ok(interfaces)
     } else {
-        None
+        use ResultCode::*;
+        Err(match result {
+            NO_ERROR => Success,
+            ERROR_ADDRESS_NOT_ASSOCIATED => ErrorAddressNotAssociated,
+            ERROR_BUFFER_OVERFLOW => ErrorBufferOverflow,
+            ERROR_INVALID_PARAMETER => ErrorInvalidParameter,
+            ERROR_NOT_ENOUGH_MEMORY => ErrorNotEnoughMemory,
+            ERROR_NO_DATA => ErrorNoData,
+            other => Other(other),
+        }
+        .into())
     }
 }

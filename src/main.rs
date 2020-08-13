@@ -1,11 +1,3 @@
-use pcp::{
-    types::ResultCode, Alert, Client, InboundMap, ProtocolNumber, Request, RequestType, State,
-};
-use std::fmt;
-use std::io::{self, BufRead, Write};
-use std::net::{IpAddr, Ipv4Addr};
-use std::sync::mpsc::RecvError;
-
 macro_rules! opt {
     ($cond:expr, $val:expr) => {
         if $cond {
@@ -16,29 +8,32 @@ macro_rules! opt {
     };
 }
 
-macro_rules! wrap {
-    (in $n:ident all of:{$($t:ty as $e:ident),+$(,)?}) => {
-		#[derive(Debug)]
-		pub enum $n { $($e($t)),+ }
-		$(impl From<$t> for $n {
-			fn from(val: $t) -> Self {
-				Self::$e(val)
-			}
-		})+
-	};
+// macro_rules! zip {
+//     ($a:ident, $b:ident) => {
+//         match ($a, $b) {
+//             (Some(a), Some(b)) => Some((a, b)),
+//             (None, _) | (_, None) => None,
+//         }
+//     };
+// }
+
+mod error;
+
+use pcp::{Alert, Client, InboundMap, ProtocolNumber, Request, RequestType, State};
+use std::fmt;
+use std::io::{self, BufRead, Write};
+use std::net::{IpAddr, Ipv4Addr};
+
+cfg_if::cfg_if! {
+    if #[cfg(target_os = "windows")] {
+        mod win;
+        use win as address;
+
+    } else if #[cfg(target_os = "linux")] {
+        mod linux;
+        use linux as address;
+    }
 }
-
-#[cfg(target_os = "windows")]
-mod win;
-
-#[cfg(target_os = "linux")]
-mod linux;
-
-#[cfg(target_os = "windows")]
-use win as address;
-
-#[cfg(target_os = "linux")]
-use linux as address;
 
 fn get_port() -> io::Result<u16> {
     let stdin = io::stdin();
@@ -52,19 +47,6 @@ fn get_port() -> io::Result<u16> {
             Ok(port) => return Ok(port),
             Err(_) => println!("Not a valid port!"),
         }
-    }
-}
-
-wrap![ in Error all of: {
-    io::Error as IoError,
-    ResultCode as PCPError,
-    RecvError as RecvError,
-    &'static str as Other,
-}];
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "An error occurred! ({:?})", self)
     }
 }
 
@@ -118,8 +100,8 @@ fn parse(command: &str) -> Option<Command> {
     COMMANDS.iter().find_map(|(s, c)| opt!(*s == command, *c))
 }
 
-fn main() -> Result<(), Error> {
-    let interface = address::retrieve().ok_or("Could't retrieve your address")?;
+fn main() -> error::Result<()> {
+    let interface = address::retrieve()?;
     if !interface.is_empty() {
         let pcp = Client::<Ipv4Addr>::start(interface[0].0, interface[0].1).unwrap();
 
@@ -170,6 +152,6 @@ fn main() -> Result<(), Error> {
         }
         Ok(())
     } else {
-        Err("Cannot retrieve your address".into())
+        Err(error::Error::AddressNotFound)
     }
 }
